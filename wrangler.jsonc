@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "croche-livre-api",
+  "main": "api/index.js",
+  "compatibility_date": "2026-10-01",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    // Endereços que podem chamar a API: o site no GitHub Pages e o servidor local (`npm start`).
+    "ALLOWED_ORIGINS": "https://delcidesneto.github.io,http://localhost:5173,http://127.0.0.1:5173"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "croche-livre",
+      "database_id": "01c25522-52b2-47b9-bf7d-2f41f769389d",
+      "migrations_dir": "api/migrations"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "croche-livre",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Simulador de crochê livre para navegador",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "test": "node --test \"tests/*.test.js\"",
+    "check:browser": "node scripts/browser-check.mjs",
+    "api": "wrangler d1 migrations apply croche-livre --local && wrangler dev",
+    "api:deploy": "wrangler d1 migrations apply croche-livre --remote && wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.150.0"
+  }
+}

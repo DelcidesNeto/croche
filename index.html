@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crochê Livre</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap">
+  <link rel="stylesheet" href="styles/main.css">
+  <script type="module" src="src/main.js"></script>
+</head>
+<body>
+  <main class="workspace">
+    <canvas id="work" tabindex="0" aria-label="Área de trabalho: mova o mouse para conduzir a agulha"></canvas>
+
+    <header class="brand-bar">
+      <h1 class="brand">Crochê <span>Livre</span></h1>
+      <div class="project">
+        <label class="visually-hidden" for="project-name">Nome do projeto</label>
+        <input id="project-name" type="text" value="Meu primeiro trabalho" maxlength="60" spellcheck="false" title="Clique para mudar o nome do projeto">
+        <dl class="project-meta">
+          <div><dt>Tempo</dt><dd id="meta-time">00:00</dd></div>
+          <div><dt>Laçadas</dt><dd id="meta-loops">0</dd></div>
+          <div><dt>Pontos</dt><dd id="meta-stitches">0</dd></div>
+          <div class="meta-mode"><dt>Modo</dt><dd id="meta-mode">Livre</dd></div>
+          <div><dt>Estado</dt><dd id="meta-state">Novo</dd></div>
+        </dl>
+        <p class="project-summary" id="meta-summary"></p>
+      </div>
+    </header>
+
+    <aside class="materials" aria-label="Materiais">
+      <h2>Fio</h2>
+      <div class="swatches" id="swatches" role="radiogroup" aria-label="Cor do fio"></div>
+      <div class="thickness" id="thickness" role="radiogroup" aria-label="Espessura do fio"></div>
+      <label class="material-field">
+        <span>Material</span>
+        <select id="material"></select>
+      </label>
+      <div class="novelos-field">
+        <h2>Novelos</h2>
+        <div class="novelos" id="novelos" aria-label="Novelos usados neste projeto"></div>
+        <button type="button" id="novelo-add" class="novelo-add" title="Guardar o fio atual como novelo">+ Guardar</button>
+      </div>
+    </aside>
+
+    <nav class="tools" aria-label="Ferramentas">
+      <button type="button" id="save" class="tool tool-wide" title="Salvar projeto (Ctrl+S)">Salvar</button>
+      <button type="button" id="projects-open" class="tool tool-wide" title="Abrir, criar ou excluir projetos">Projetos</button>
+      <button type="button" id="tapestry-open" class="tool tool-wide" title="Começar um crochê tapeçaria (pixel art)">Tapeçaria</button>
+      <span class="tools-divider" aria-hidden="true"></span>
+      <button type="button" id="undo" class="tool" disabled title="Desfazer (Ctrl+Z)" aria-label="Desfazer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+      </button>
+      <button type="button" id="redo" class="tool" disabled title="Refazer (Ctrl+Y)" aria-label="Refazer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
+      </button>
+      <span class="tools-divider" aria-hidden="true"></span>
+      <button type="button" id="zoom-out" class="tool" title="Afastar (−)" aria-label="Afastar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>
+      </button>
+      <button type="button" id="zoom-reset" class="tool tool-wide" title="Voltar ao zoom normal (0)">100%</button>
+      <button type="button" id="zoom-in" class="tool" title="Aproximar (+)" aria-label="Aproximar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg>
+      </button>
+      <span class="tools-divider" aria-hidden="true"></span>
+      <button type="button" id="settings-open" class="tool" title="Configurações" aria-label="Configurações">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+      </button>
+      <button type="button" id="help-open" class="tool tool-wide" title="Ajuda (H)">Ajuda</button>
+      <span class="tools-divider" aria-hidden="true"></span>
+      <button type="button" id="account-open" class="tool tool-wide tool-account" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+        <span id="account-name"></span>
+      </button>
+    </nav>
+
+    <footer class="hint-bar">
+      <p id="hint" aria-live="polite"></p>
+      <div class="tension" title="Tensão da linha entre o novelo e a agulha">
+        <span>Tensão</span>
+        <span class="tension-track"><span class="tension-fill" id="tension"></span></span>
+      </div>
+    </footer>
+
+    <dialog id="help" class="sheet" aria-labelledby="help-title">
+      <form method="dialog">
+        <h2 id="help-title">Como trabalhar</h2>
+        <p class="sheet-lead">Não existe menu de pontos. Pegue a linha com a agulha e conduza o fio: as laçadas nascem dos seus movimentos, e o jogo reconhece o ponto pela sequência do que você fez.</p>
+        <dl class="help-keys">
+          <div><dt>Mover o mouse</dt><dd>Conduz a agulha</dd></div>
+          <div><dt>Clique esquerdo</dt><dd>Pega a linha; com a ponta dentro de uma volta destacada, aperta a laçada inicial; depois disso, laça o fio quando a ponta toca o fio de trabalho</dd></div>
+          <div><dt>Clique direito</dt><dd>Laça o fio (passa uma volta na garganta da agulha); antes da laçada inicial, solta a linha</dd></div>
+          <div><dt>Avançar a ponta dentro de uma laçada</dt><dd>Insere a agulha nela</dd></div>
+          <div><dt>Recuar a agulha na direção do cabo</dt><dd>Puxa a volta da garganta através das laçadas, uma de cada vez</dd></div>
+          <div><dt>Arrastar com o botão direito, Q ou E</dt><dd>Gira a agulha</dd></div>
+          <div><dt>Segurar Shift</dt><dd>Segura a linha: o novelo não solta fio, a tensão sobe e as laçadas saem mais justas</dd></div>
+          <div><dt>Roda do mouse</dt><dd>Aproxima ou afasta</dd></div>
+          <div><dt>Arrastar com o botão do meio</dt><dd>Move a área de trabalho</dd></div>
+          <div><dt>Espaço</dt><dd>Pausa ou retoma a simulação</dd></div>
+          <div><dt>+ / − / 0</dt><dd>Aproxima, afasta ou volta ao zoom normal</dd></div>
+          <div><dt>Ctrl + Z / Ctrl + Y</dt><dd>Desfaz ou refaz operações</dd></div>
+          <div><dt>Ctrl + S</dt><dd>Salva o projeto na sua conta</dd></div>
+          <div><dt>1 a 9</dt><dd>Escolhe a cor do fio, na ordem da paleta</dd></div>
+          <div><dt>B</dt><dd>No modo tapeçaria, faz o próximo ponto inteiro: ponto baixo, ou correntinha quando a carreira pede</dd></div>
+          <div><dt>H</dt><dd>Abre esta ajuda</dd></div>
+        </dl>
+        <p class="help-note">Para começar: pegue a linha e cruze o fio sobre ele mesmo até fechar uma volta. Solte a linha, leve a ponta da agulha para dentro da volta destacada e clique. Daí em diante, laçar e puxar formam correntinhas; inserir a agulha numa laçada da peça antes de laçar forma pontos baixos, altos e o que mais você inventar.</p>
+        <p class="help-note"><strong>Modo tapeçaria (pixel art):</strong> cada ponto ocupa uma casa da grade, alinhado com o ponto de baixo. Pegue a linha e clique de novo para a laçada inicial; faça as correntinhas da carreira de base e, no fim de cada carreira, uma correntinha para virar. Nas outras carreiras basta avançar a agulha para entrar no ponto destacado, laçar e puxar. Troque a cor antes de cada ponto para desenhar.</p>
+        <div class="sheet-actions">
+          <button type="submit" class="button-primary">Entendi</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="projects" class="sheet" aria-labelledby="projects-title">
+      <form method="dialog">
+        <h2 id="projects-title">Projetos</h2>
+        <p class="sheet-lead">Os projetos ficam guardados na sua conta e abrem em qualquer aparelho.</p>
+        <ul class="project-list" id="project-list"></ul>
+        <p class="project-empty" id="project-empty" hidden>Nenhum projeto salvo ainda.</p>
+        <div class="sheet-actions">
+          <button type="button" id="project-new" class="button-secondary">Novo projeto</button>
+          <button type="button" id="project-tapestry" class="button-secondary">Nova tapeçaria</button>
+          <button type="submit" class="button-primary">Fechar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="account" class="sheet sheet-small" aria-labelledby="account-title" closedby="none">
+      <form id="account-form">
+        <h2 id="account-title">Entrar</h2>
+        <p class="sheet-lead" id="account-lead">Cada pessoa tem a sua conta e vê só os próprios projetos. Ainda não tem conta? Escolha um usuário e uma senha e clique em “Criar conta”.</p>
+        <label class="setting">
+          <span>Usuário</span>
+          <input type="text" id="account-user" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="30" required>
+          <small>De 3 a 30 caracteres: letras sem acento, números, ponto, hífen ou sublinhado.</small>
+        </label>
+        <label class="setting">
+          <span>Senha</span>
+          <input type="password" id="account-password" autocomplete="current-password" maxlength="200" required>
+          <small>Pelo menos 6 caracteres.</small>
+        </label>
+        <p class="account-error" id="account-error" role="alert" hidden></p>
+        <div class="sheet-actions">
+          <button type="button" id="account-signup" class="button-secondary">Criar conta</button>
+          <button type="submit" id="account-login" class="button-primary">Entrar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="confirm" class="sheet sheet-small" aria-labelledby="confirm-title">
+      <form method="dialog">
+        <h2 id="confirm-title"></h2>
+        <p class="sheet-lead" id="confirm-message"></p>
+        <div class="sheet-actions">
+          <button type="submit" value="cancelar" class="button-secondary">Cancelar</button>
+          <button type="submit" value="confirmar" id="confirm-ok" class="button-danger">Confirmar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="settings" class="sheet sheet-small" aria-labelledby="settings-title">
+      <form method="dialog">
+        <h2 id="settings-title">Configurações</h2>
+        <label class="setting">
+          <span>Resposta da agulha</span>
+          <input type="range" id="setting-follow" min="6" max="40" step="1">
+          <small>Mais à esquerda, a agulha acompanha o mouse com suavidade; mais à direita, de forma imediata.</small>
+        </label>
+        <label class="setting-check"><input type="checkbox" id="setting-guide"> Mostrar a guia ao puxar o fio</label>
+        <label class="setting-check"><input type="checkbox" id="setting-names"> Mostrar o nome do ponto reconhecido</label>
+        <div class="sheet-actions">
+          <button type="submit" class="button-primary">Pronto</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="tapestry" class="sheet sheet-small" aria-labelledby="tapestry-title">
+      <form method="dialog">
+        <h2 id="tapestry-title">Nova tapeçaria</h2>
+        <p class="sheet-lead">No crochê tapeçaria (tapestry crochet), cada ponto é um pixel: os pontos ficam alinhados em carreiras, um ao lado do outro, e você troca a cor do fio de um ponto para o outro para formar o desenho.</p>
+        <label class="setting">
+          <span>Pontos por carreira</span>
+          <input type="number" id="tapestry-columns" min="4" max="60" step="1" value="20">
+          <small>É a largura do desenho, de 4 a 60 pontos.</small>
+        </label>
+        <div class="sheet-actions">
+          <button type="button" id="tapestry-cancel" class="button-secondary">Cancelar</button>
+          <button type="submit" value="criar" class="button-primary">Começar tapeçaria</button>
+        </div>
+      </form>
+    </dialog>
+  </main>
+</body>
+</html>

@@ -229,6 +229,42 @@ select {
   transform: scale(1.12);
 }
 
+/* Tons da cor escolhida, ao lado do painel */
+
+.tones {
+  position: absolute;
+  top: var(--top, 0);
+  left: calc(100% + 10px);
+  z-index: 3;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--panel-edge);
+  border-radius: var(--radius);
+  background: #f7faf3;
+  box-shadow: var(--shadow);
+  animation: tones-in 180ms var(--ease-out);
+}
+
+.tones[hidden] {
+  display: none;
+}
+
+.tones-title {
+  margin: 0 0 7px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+
+.tones-list {
+  display: flex;
+  gap: 7px;
+}
+
+.tones-list .swatch {
+  width: 26px;
+}
+
 .thickness {
   display: flex;
   justify-content: space-between;
@@ -701,6 +737,13 @@ select {
   }
 }
 
+@keyframes tones-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+
 @keyframes dialog-in {
   from {
     opacity: 0;
@@ -759,6 +802,13 @@ select {
   .swatches {
     grid-template-columns: repeat(9, 22px);
     gap: 6px;
+  }
+
+  .tones {
+    top: auto;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    translate: -50% 0;
   }
 
   .thickness {

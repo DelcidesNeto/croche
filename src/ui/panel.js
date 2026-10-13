@@ -1,4 +1,4 @@
-import { MATERIALS, THICKNESSES, YARN_COLORS, noveloKey } from '../sim/materials.js';
+import { MATERIALS, THICKNESSES, YARN_COLORS, colorFamily, noveloKey } from '../sim/materials.js';
 
 const HELP_SEEN_KEY = 'croche-livre:ajuda-vista';
 const TOOL_IDS = ['save', 'projects-open', 'tapestry-open', 'undo', 'redo', 'zoom-in', 'zoom-out', 'zoom-reset', 'settings-open', 'help-open', 'account-open'];
@@ -66,12 +66,59 @@ export function createPanel({ style, onColor, onThickness, onMaterial, onTool, o
   let hintTimer = 0;
   let novelosKey = '';
 
-  const selectColor = radioGroup($('swatches'), YARN_COLORS, style.colorId, (button, color) => {
+  const swatches = $('swatches');
+  const tones = $('tones');
+  const tonesList = $('tones-list');
+  let colorId = style.colorId;
+  let openFamily = null;
+  let selectTone = () => {};
+
+  const buildSwatch = (button, color) => {
     button.className = 'swatch';
     button.style.setProperty('--swatch', color.value);
     button.title = color.name;
     button.setAttribute('aria-label', color.name);
-  }, onColor);
+  };
+
+  function chooseColor(color) {
+    colorId = color.id;
+    selectTone(colorId);
+    onColor(color);
+  }
+
+  function closeTones() {
+    openFamily = null;
+    tones.hidden = true;
+  }
+
+  function toggleTones(family) {
+    if (openFamily === family) {
+      closeTones();
+      return;
+    }
+    openFamily = family;
+    $('tones-title').textContent = `Tons de ${family.name.toLowerCase()}`;
+    tonesList.replaceChildren();
+    selectTone = radioGroup(tonesList, family.tones, colorId, buildSwatch, chooseColor);
+    tones.style.setProperty('--top', `${swatches.querySelector(`[data-id="${family.id}"]`).offsetTop}px`);
+    tones.hidden = false;
+  }
+
+  // Clicar numa cor escolhe a própria cor e abre os tons dela ao lado; clicar de novo fecha.
+  const selectFamily = radioGroup(swatches, YARN_COLORS, colorFamily(colorId).id, (button, family) => {
+    buildSwatch(button, family);
+    button.title = `${family.name}: clique para ver os tons`;
+  }, (family) => {
+    if (colorFamily(colorId) !== family) chooseColor(family);
+    toggleTones(family);
+  });
+
+  document.addEventListener('pointerdown', (event) => {
+    if (openFamily && !tones.contains(event.target) && !swatches.contains(event.target)) closeTones();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeTones();
+  });
 
   const selectThickness = radioGroup($('thickness'), THICKNESSES, style.thicknessId, (button, thickness) => {
     button.className = 'thickness-option';
@@ -144,7 +191,10 @@ export function createPanel({ style, onColor, onThickness, onMaterial, onTool, o
     },
 
     selectStyle(next) {
-      selectColor(next.colorId);
+      colorId = next.colorId;
+      if (openFamily && openFamily !== colorFamily(colorId)) closeTones();
+      selectFamily(colorFamily(colorId).id);
+      selectTone(colorId);
       selectThickness(next.thicknessId);
       material.value = next.materialId;
     },

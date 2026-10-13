@@ -240,6 +240,27 @@ try {
   await sleep(100);
   s = await state();
   check('escolher uma cor muda o fio', s.color === '#1f5f6b', s.color);
+  const tapOn = async (selector) => {
+    const r = await evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+    await click(r.x, r.y);
+    await sleep(150);
+  };
+  const tonesOpen = () => evaluate(`!document.getElementById('tones').hidden`);
+  const tonesShown = await evaluate(`document.querySelectorAll('#tones-list .swatch').length`);
+  check('clicar numa cor abre os tons dela', (await tonesOpen()) && tonesShown === 7, `${tonesShown} tons`);
+  await shot('06b-tons.png');
+  await tapOn('#tones-list .swatch[data-id="petroleo-escuro-2"]');
+  s = await state();
+  const toneMarked = await evaluate(`document.querySelector('#tones-list [aria-checked="true"]')?.dataset.id`);
+  check('escolher um tom muda o fio para ele', s.color !== '#1f5f6b' && toneMarked === 'petroleo-escuro-2', s.color);
+  await tapOn('#swatches .swatch[data-id="petroleo"]');
+  s = await state();
+  check('clicar de novo na cor fecha os tons e mantém o tom escolhido', !(await tonesOpen()) && s.color !== '#1f5f6b', s.color);
+  await tapOn('#swatches .swatch[data-id="petroleo"]');
+  await tapOn('#tones-list .swatch[data-id="petroleo"]');
+  await tapOn('#hint');
+  s = await state();
+  check('clicar fora fecha os tons', !(await tonesOpen()) && s.color === '#1f5f6b', s.color);
 
   // Atalhos não interferem na digitação.
   await evaluate(`document.getElementById('project-name').focus()`);
@@ -418,7 +439,7 @@ try {
   await shot('10-ponto-baixo.png');
 
   // Trocar a cor no meio do trabalho: as próximas laçadas usam o novo fio, as antigas continuam iguais.
-  await clickElement('.swatch[data-id="cereja"]');
+  await clickElement('#swatches .swatch[data-id="cereja"]');
   await moveTo(cursor.x, cursor.y + 1, 2);
   await rightClick();
   await sleep(120);

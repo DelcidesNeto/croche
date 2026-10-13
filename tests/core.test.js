@@ -2,7 +2,26 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Viewport } from '../src/camera/viewport.js';
 import { closestPointOnSegment, polygonArea, segmentIntersection } from '../src/core/math.js';
+import { YARN_COLORS, colorFamily, resolveStyle } from '../src/sim/materials.js';
 import { Needle } from '../src/sim/needle.js';
+
+test('cada cor tem três tons mais claros e três mais escuros, com a própria cor no meio', () => {
+  const luminance = (hex) => [1, 3, 5].reduce((sum, i) => sum + parseInt(hex.slice(i, i + 2), 16), 0);
+  for (const family of YARN_COLORS) {
+    assert.equal(family.tones.length, 7);
+    assert.equal(family.tones[3].id, family.id);
+    const values = family.tones.map((tone) => luminance(tone.value));
+    for (let i = 1; i < values.length; i++) assert.ok(values[i] < values[i - 1], `${family.name}: tons fora de ordem`);
+  }
+});
+
+test('tons são escolhidos pelo id e cores salvas antes dos tons continuam iguais', () => {
+  const dark = resolveStyle({ colorId: 'cereja-escuro-2' });
+  assert.equal(dark.colorName, 'Cereja (tom escuro 2)');
+  assert.equal(colorFamily(dark.colorId).id, 'cereja');
+  assert.equal(resolveStyle({ colorId: 'cereja' }).color, '#b3263a');
+  assert.equal(resolveStyle({ colorId: 'nao-existe' }).colorId, 'mostarda');
+});
 
 test('interseção de segmentos é estrita', () => {
   assert.ok(segmentIntersection(0, 0, 10, 10, 0, 10, 10, 0));

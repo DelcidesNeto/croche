@@ -46,7 +46,8 @@ test('as casas seguem carreiras de ida e volta', () => {
     { col: 0, row: 0 }, { col: 3, row: 0 }, { col: 3, row: 1 }, { col: 0, row: 1 }, { col: 0, row: 2 },
   ]);
   assert.equal(clampColumns('2'), 4);
-  assert.equal(clampColumns(99), 60);
+  assert.equal(clampColumns(99), 99);
+  assert.equal(clampColumns(9999), 500);
   assert.equal(clampColumns('abc'), 20);
 });
 

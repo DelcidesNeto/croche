@@ -1,6 +1,6 @@
 import { STITCH } from './recognition.js';
 
-export const COLUMNS = { min: 4, max: 60, standard: 20 };
+export const COLUMNS = { min: 4, max: 500, standard: 20 };
 
 // A carreira de base fica nesta altura do mundo e as outras sobem a partir dela.
 const BASE_Y = 60;

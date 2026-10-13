@@ -1,4 +1,4 @@
-import { Viewport } from './camera/viewport.js';
+import { MIN_ZOOM, Viewport } from './camera/viewport.js';
 import { clamp, damp, dist, pointInPolygon } from './core/math.js';
 import { History } from './crochet/history.js';
 import { STITCH, STITCH_NAMES, recognizeStitches, summarize } from './crochet/recognition.js';
@@ -148,14 +148,17 @@ export class App {
     this.updateRecognition(false);
   }
 
-  // Enquadra a carreira de base e algumas carreiras acima dela.
+  // Enquadra a carreira de base e algumas carreiras acima dela. Se ela for larga demais para caber,
+  // mostra o começo, à esquerda, onde a carreira de base nasce.
   tapestryCamera() {
     const grid = this.grid;
     const span = grid.columns * grid.width;
+    const zoom = clamp((this.viewport.width * 0.6) / span, MIN_ZOOM, 1.4);
+    const shown = Math.min(span, (this.viewport.width * 0.6) / zoom);
     return {
-      x: grid.x0 + span / 2 - grid.width / 2,
+      x: grid.x0 + shown / 2 - grid.width / 2,
       y: grid.y0 - grid.height * 3,
-      zoom: clamp((this.viewport.width * 0.6) / span, 0.35, 1.4),
+      zoom,
     };
   }
 

@@ -4,8 +4,10 @@
 const SESSION_DAYS = 30;
 // O Workers aceita no máximo 100 mil iterações de PBKDF2.
 const PBKDF2_ITERATIONS = 100_000;
-// O D1 guarda até 2 MB por linha; a folga cobre o nome e as outras colunas.
-const MAX_PROJECT_BYTES = 1_900_000;
+// O projeto chega compactado em base64 e vira pedaços de texto: o D1 guarda até 2 MB por linha.
+const CHUNK_CHARS = 1_500_000;
+// Cerca de 22 MB compactados; o lote de escrita fica bem abaixo do limite de consultas por pedido.
+const MAX_PROJECT_CHARS = 30_000_000;
 const USERNAME = /^[a-z0-9._-]{3,30}$/;
 const PROJECT_ID = /^[\w-]{1,80}$/;
 const MIN_PASSWORD = 6;
@@ -90,22 +92,23 @@ async function authenticate(request, env) {
   return session;
 }
 
-async function readProject(request, id) {
-  if (Number(request.headers.get('Content-Length')) > MAX_PROJECT_BYTES) {
+// O conteúdo é opaco aqui: quem compacta, confere e descompacta é o navegador.
+async function readProject(request) {
+  if (Number(request.headers.get('Content-Length')) > MAX_PROJECT_CHARS) {
     throw new HttpError(413, 'o projeto ficou grande demais para ser salvo');
   }
   const text = await request.text();
-  if (new TextEncoder().encode(text).length > MAX_PROJECT_BYTES) {
-    throw new HttpError(413, 'o projeto ficou grande demais para ser salvo');
-  }
-  let data;
+  if (text.length > MAX_PROJECT_CHARS) throw new HttpError(413, 'o projeto ficou grande demais para ser salvo');
+  if (!text) throw new HttpError(400, 'o projeto enviado está vazio');
+  let name;
   try {
-    data = JSON.parse(text);
+    name = decodeURIComponent(request.headers.get('X-Project-Name') ?? '').trim().slice(0, 60);
   } catch {
-    throw new HttpError(400, 'o projeto enviado está corrompido');
+    throw new HttpError(400, 'o nome do projeto veio corrompido');
   }
-  if (data?.id !== id) throw new HttpError(400, 'o projeto enviado está corrompido');
-  return { text, name: String(data.name ?? 'Sem nome').slice(0, 60) };
+  const chunks = [];
+  for (let start = 0; start < text.length; start += CHUNK_CHARS) chunks.push(text.slice(start, start + CHUNK_CHARS));
+  return { chunks, name: name || 'Sem nome' };
 }
 
 async function projects(request, env, user, id) {
@@ -121,17 +124,34 @@ async function projects(request, env, user, id) {
   if (id === undefined || !PROJECT_ID.test(id)) throw new HttpError(404, 'endereço não encontrado');
 
   if (method === 'GET') {
-    const row = await DB.prepare('SELECT data, updated_at FROM projects WHERE user_id = ? AND id = ?').bind(user.id, id).first();
-    if (!row) throw new HttpError(404, 'ele não existe mais');
-    return json({ ...JSON.parse(row.data), updatedAt: row.updated_at });
+    const [project, chunks] = await DB.batch([
+      DB.prepare('SELECT name, updated_at FROM projects WHERE user_id = ? AND id = ?').bind(user.id, id),
+      DB.prepare('SELECT data FROM project_chunks WHERE user_id = ? AND project_id = ? ORDER BY seq').bind(user.id, id),
+    ]);
+    const row = project.results[0];
+    if (!row || !chunks.results.length) throw new HttpError(404, 'ele não existe mais');
+    // O nome fica fora do conteúdo compactado para renomear sem reescrever o projeto.
+    return new Response(chunks.results.map((chunk) => chunk.data).join(''), {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'X-Project-Name': encodeURIComponent(row.name),
+        'X-Updated-At': String(row.updated_at),
+      },
+    });
   }
   if (method === 'PUT') {
-    const { text, name } = await readProject(request, id);
+    const { chunks, name } = await readProject(request);
     const updatedAt = Date.now();
-    await DB.prepare(`
-      INSERT INTO projects (user_id, id, name, data, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)
-      ON CONFLICT (user_id, id) DO UPDATE SET name = ?3, data = ?4, updated_at = ?5
-    `).bind(user.id, id, name, text, updatedAt).run();
+    await DB.batch([
+      DB.prepare(`
+        INSERT INTO projects (user_id, id, name, updated_at) VALUES (?1, ?2, ?3, ?4)
+        ON CONFLICT (user_id, id) DO UPDATE SET name = ?3, updated_at = ?4
+      `).bind(user.id, id, name, updatedAt),
+      DB.prepare('DELETE FROM project_chunks WHERE user_id = ? AND project_id = ?').bind(user.id, id),
+      ...chunks.map((data, seq) => DB.prepare(
+        'INSERT INTO project_chunks (user_id, project_id, seq, data) VALUES (?, ?, ?, ?)',
+      ).bind(user.id, id, seq, data)),
+    ]);
     return json({ updatedAt });
   }
   if (method === 'PATCH') {
@@ -139,14 +159,15 @@ async function projects(request, env, user, id) {
     const name = String(body?.name ?? '').trim().slice(0, 60);
     if (!name) throw new HttpError(400, 'o nome não pode ficar vazio');
     // Muda só o nome: a data de salvamento fica como está, então a ordem da lista não muda.
-    const { meta } = await DB.prepare(
-      "UPDATE projects SET name = ?1, data = json_set(data, '$.name', ?1) WHERE user_id = ?2 AND id = ?3",
-    ).bind(name, user.id, id).run();
+    const { meta } = await DB.prepare('UPDATE projects SET name = ? WHERE user_id = ? AND id = ?').bind(name, user.id, id).run();
     if (!meta.changes) throw new HttpError(404, 'ele não existe mais');
     return new Response(null, { status: 204 });
   }
   if (method === 'DELETE') {
-    await DB.prepare('DELETE FROM projects WHERE user_id = ? AND id = ?').bind(user.id, id).run();
+    await DB.batch([
+      DB.prepare('DELETE FROM project_chunks WHERE user_id = ? AND project_id = ?').bind(user.id, id),
+      DB.prepare('DELETE FROM projects WHERE user_id = ? AND id = ?').bind(user.id, id),
+    ]);
     return new Response(null, { status: 204 });
   }
   throw new HttpError(405, 'operação não permitida');
@@ -177,7 +198,8 @@ function corsHeaders(request, env) {
   return {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Project-Name',
+    'Access-Control-Expose-Headers': 'X-Project-Name, X-Updated-At',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };

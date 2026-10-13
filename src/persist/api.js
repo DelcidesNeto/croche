@@ -12,15 +12,13 @@ export function whenSessionLost(callback) {
   onSessionLost = callback;
 }
 
-async function call(method, path, body) {
+async function request(method, path, { body, headers = {} } = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
-  const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
 
   let response;
   try {
-    response = await fetch(`${API_URL}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    response = await fetch(`${API_URL}${path}`, { method, headers, body });
   } catch {
     throw new Error('sem conexão com o servidor');
   }
@@ -28,10 +26,18 @@ async function call(method, path, body) {
     localStorage.removeItem(TOKEN_KEY);
     onSessionLost();
   }
-  if (response.status === 204) return null;
-  const data = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(data?.error ?? `o servidor respondeu com erro ${response.status}`);
-  return data;
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.error ?? `o servidor respondeu com erro ${response.status}`);
+  }
+  return response;
+}
+
+async function call(method, path, body) {
+  const response = await request(method, path, body === undefined
+    ? {}
+    : { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+  return response.status === 204 ? null : response.json();
 }
 
 async function enter(path, username, password) {
@@ -64,13 +70,38 @@ export async function logout() {
 
 const projectPath = (id) => `/projects/${encodeURIComponent(id)}`;
 
-// `project` precisa conter `id`; o restante é o estado serializado do trabalho.
-export function saveProject(project) {
-  return call('PUT', projectPath(project.id), project);
+// O projeto viaja e fica guardado compactado (gzip em base64): cabe muito mais e o envio é menor.
+async function pack(project) {
+  const zipped = new Blob([JSON.stringify(project)]).stream().pipeThrough(new CompressionStream('gzip'));
+  return new Uint8Array(await new Response(zipped).arrayBuffer()).toBase64();
 }
 
-export function loadProject(id) {
-  return call('GET', projectPath(id));
+function unpack(text) {
+  const unzipped = new Blob([Uint8Array.fromBase64(text)]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Response(unzipped).json();
+}
+
+// `project` precisa conter `id`; o restante é o estado serializado do trabalho.
+export async function saveProject(project) {
+  await request('PUT', projectPath(project.id), {
+    body: await pack(project),
+    headers: { 'Content-Type': 'text/plain', 'X-Project-Name': encodeURIComponent(project.name) },
+  });
+}
+
+export async function loadProject(id) {
+  const response = await request('GET', projectPath(id));
+  let project;
+  try {
+    project = await unpack(await response.text());
+  } catch {
+    throw new Error('o projeto salvo está corrompido');
+  }
+  return {
+    ...project,
+    name: decodeURIComponent(response.headers.get('X-Project-Name')),
+    updatedAt: Number(response.headers.get('X-Updated-At')),
+  };
 }
 
 export function listProjects() {

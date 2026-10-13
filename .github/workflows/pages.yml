@@ -27,7 +27,14 @@ jobs:
           node-version: 24
       - run: npm test
       # Só o que o navegador usa; a API (pasta api/) é publicada na Cloudflare com `npm run api:deploy`.
-      - run: mkdir _site && cp -r index.html src styles _site/
+      # O GitHub Pages deixa o navegador guardar cada arquivo por 10 minutos: numa pasta por versão,
+      # uma página nova nunca carrega módulos antigos guardados.
+      - run: |
+          version=${GITHUB_SHA::7}
+          mkdir -p _site/$version
+          cp -r src styles _site/$version/
+          sed -e "s#\"styles/#\"$version/styles/#g" -e "s#\"src/#\"$version/src/#g" index.html > _site/index.html
+          grep -q "$version/src/main.js" _site/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
